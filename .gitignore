@@ -1,0 +1,39 @@
+# Build outputs
+build/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# IDE: CLion
+.idea/
+
+# IDE: VS Code
+.vscode/
+
+# IDE: Visual Studio
+.vs/
+*.vcxproj*
+*.sln
+*.user
+*.filters
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / dumps
+*.stackdump
+*.core
+
+# Temporary files
+tmp/
+*.tmp
+*.log

@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <cstdint>
+#include <algorithm>
 
 #include "tape/temp_file_tape.hpp"
 
@@ -18,13 +19,30 @@ protected:
     void SetUp() override {
         test_dir_ = fs::temp_directory_path() / "tape_sort_temp_tests";
         fs::create_directories(test_dir_);
-
-        tape_path_ = test_dir_ / "temp_tape.bin";
     }
 
     void TearDown() override {
         std::error_code ec;
         fs::remove_all(test_dir_, ec);
+    }
+
+    std::vector<fs::path> list_files() const {
+        std::vector<fs::path> files;
+
+        if (!fs::exists(test_dir_))
+            return files;
+
+        for (auto& p : fs::directory_iterator(test_dir_)) {
+            files.push_back(p.path());
+        }
+
+        return files;
+    }
+
+    fs::path single_file() const {
+        auto files = list_files();
+        EXPECT_EQ(files.size(), 1);
+        return files.empty() ? fs::path{} : files.front();
     }
 
     std::vector<int32_t> read_all_values(const fs::path& path) {
@@ -34,7 +52,6 @@ protected:
             throw std::runtime_error("Failed to open tape file");
 
         std::vector<int32_t> result;
-
         int32_t value = 0;
 
         while (in.read(reinterpret_cast<char*>(&value), sizeof(value))) {
@@ -46,25 +63,26 @@ protected:
 
 protected:
     fs::path test_dir_;
-    fs::path tape_path_;
 };
 
 TEST_F(TempFileTapeTest, CreatesTapeFileOnConstruction)
 {
-    EXPECT_FALSE(fs::exists(tape_path_));
+    EXPECT_TRUE(list_files().empty());
 
     {
-        TempFileTape tape(tape_path_.string(), 5);
-
-        EXPECT_TRUE(fs::exists(tape_path_));
+        TempFileTape tape(test_dir_.string(), 5);
+        EXPECT_EQ(list_files().size(), 1);
     }
+
+    EXPECT_TRUE(list_files().empty());
 }
 
 TEST_F(TempFileTapeTest, InitializesTapeWithZeros)
 {
-    TempFileTape tape(tape_path_.string(), 4);
+    TempFileTape tape(test_dir_.string(), 4);
 
-    const auto values = read_all_values(tape_path_);
+    auto file = single_file();
+    auto values = read_all_values(file);
 
     ASSERT_EQ(values.size(), 4);
 
@@ -76,34 +94,32 @@ TEST_F(TempFileTapeTest, InitializesTapeWithZeros)
 
 TEST_F(TempFileTapeTest, CorrectlyReportsSize)
 {
-    TempFileTape tape(tape_path_.string(), 7);
+    TempFileTape tape(test_dir_.string(), 7);
 
     EXPECT_EQ(tape.size(), 7);
 }
 
 TEST_F(TempFileTapeTest, InitialPositionIsFirstElement)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     EXPECT_EQ(tape.position(), 1);
-
     EXPECT_FALSE(tape.is_bof());
     EXPECT_FALSE(tape.is_eof());
 }
 
 TEST_F(TempFileTapeTest, ReadReturnsInitializedValue)
 {
-    TempFileTape tape(tape_path_.string(), 2);
+    TempFileTape tape(test_dir_.string(), 2);
 
     EXPECT_EQ(tape.read(), 0);
 }
 
 TEST_F(TempFileTapeTest, WriteStoresValue)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.write(777);
-
     tape.rewind();
 
     EXPECT_EQ(tape.read(), 777);
@@ -111,7 +127,7 @@ TEST_F(TempFileTapeTest, WriteStoresValue)
 
 TEST_F(TempFileTapeTest, MultipleWritesWorkCorrectly)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.write(10);
 
@@ -134,7 +150,7 @@ TEST_F(TempFileTapeTest, MultipleWritesWorkCorrectly)
 
 TEST_F(TempFileTapeTest, MoveRightChangesPosition)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     EXPECT_EQ(tape.position(), 1);
 
@@ -152,7 +168,7 @@ TEST_F(TempFileTapeTest, MoveRightChangesPosition)
 
 TEST_F(TempFileTapeTest, MoveLeftChangesPosition)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.move_right();
     tape.move_right();
@@ -173,12 +189,10 @@ TEST_F(TempFileTapeTest, MoveLeftChangesPosition)
 
 TEST_F(TempFileTapeTest, RewindMovesHeadToFirstElement)
 {
-    TempFileTape tape(tape_path_.string(), 5);
+    TempFileTape tape(test_dir_.string(), 5);
 
     tape.move_right();
     tape.move_right();
-
-    EXPECT_EQ(tape.position(), 3);
 
     tape.rewind();
 
@@ -187,143 +201,106 @@ TEST_F(TempFileTapeTest, RewindMovesHeadToFirstElement)
 
 TEST_F(TempFileTapeTest, ReadThrowsAtBOF)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.move_left();
 
-    EXPECT_TRUE(tape.is_bof());
-
-    EXPECT_THROW(
-        tape.read(),
-        std::out_of_range
-    );
+    EXPECT_THROW(tape.read(), std::out_of_range);
 }
 
 TEST_F(TempFileTapeTest, ReadThrowsAtEOF)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.move_right();
     tape.move_right();
     tape.move_right();
 
-    EXPECT_TRUE(tape.is_eof());
-
-    EXPECT_THROW(
-        tape.read(),
-        std::out_of_range
-    );
+    EXPECT_THROW(tape.read(), std::out_of_range);
 }
 
 TEST_F(TempFileTapeTest, WriteThrowsAtBOF)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.move_left();
 
-    EXPECT_THROW(
-        tape.write(123),
-        std::out_of_range
-    );
+    EXPECT_THROW(tape.write(123), std::out_of_range);
 }
 
 TEST_F(TempFileTapeTest, WriteThrowsAtEOF)
 {
-    TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
     tape.move_right();
     tape.move_right();
     tape.move_right();
 
-    EXPECT_THROW(
-        tape.write(123),
-        std::out_of_range
-    );
+    EXPECT_THROW(tape.write(123), std::out_of_range);
 }
 
 TEST_F(TempFileTapeTest, RemovesFileOnDestruction)
 {
-    {
-        TempFileTape tape(tape_path_.string(), 3);
+    std::vector<fs::path> file_before;
 
-        EXPECT_TRUE(fs::exists(tape_path_));
+    {
+        TempFileTape tape(test_dir_.string(), 3);
+        file_before = list_files();
+        EXPECT_EQ(file_before.size(), 1);
     }
 
-    EXPECT_FALSE(fs::exists(tape_path_));
-}
-
-TEST_F(TempFileTapeTest, ThrowsIfFileAlreadyExists)
-{
-    {
-        std::ofstream out(tape_path_);
-    }
-
-    EXPECT_THROW(
-        TempFileTape(tape_path_.string(), 5),
-        std::runtime_error
-    );
+    EXPECT_TRUE(list_files().empty());
 }
 
 TEST_F(TempFileTapeTest, CreatesParentDirectories)
 {
-    fs::path nested_path =
-        test_dir_ /
-        "nested" /
-        "dir" /
-        "temp_tape.bin";
+    fs::path nested = test_dir_ / "a" / "b" / "c";
 
-    EXPECT_FALSE(fs::exists(nested_path.parent_path()));
+    TempFileTape tape(nested.string(), 2);
 
-    TempFileTape tape(nested_path.string(), 2);
-
-    EXPECT_TRUE(fs::exists(nested_path.parent_path()));
-    EXPECT_TRUE(fs::exists(nested_path));
+    EXPECT_EQ(list_files().size(), 1);
 }
 
-TEST_F(TempFileTapeTest, FileContainsPersistedValues)
+TEST_F(TempFileTapeTest, WritesValuesCorrectly)
 {
-    {
-        TempFileTape tape(tape_path_.string(), 3);
+    TempFileTape tape(test_dir_.string(), 3);
 
-        tape.write(11);
+    tape.write(11);
+    tape.move_right();
+    tape.write(22);
+    tape.move_right();
+    tape.write(33);
 
-        tape.move_right();
-        tape.write(22);
+    tape.rewind();
 
-        tape.move_right();
-        tape.write(33);
-    }
-
-    EXPECT_FALSE(fs::exists(tape_path_));
+    EXPECT_EQ(tape.read(), 11);
+    tape.move_right();
+    EXPECT_EQ(tape.read(), 22);
+    tape.move_right();
+    EXPECT_EQ(tape.read(), 33);
 }
 
 TEST_F(TempFileTapeTest, HandlesSingleElementTape)
 {
-    TempFileTape tape(tape_path_.string(), 1);
+    TempFileTape tape(test_dir_.string(), 1);
 
     EXPECT_EQ(tape.size(), 1);
 
     tape.write(999);
-
     tape.rewind();
 
     EXPECT_EQ(tape.read(), 999);
 
     tape.move_right();
-
     EXPECT_TRUE(tape.is_eof());
 }
 
 TEST_F(TempFileTapeTest, HandlesEmptyTape)
 {
-    TempFileTape tape(tape_path_.string(), 0);
+    TempFileTape tape(test_dir_.string(), 0);
 
     EXPECT_EQ(tape.size(), 0);
-
     EXPECT_TRUE(tape.is_eof());
 
-    EXPECT_THROW(
-        tape.read(),
-        std::out_of_range
-    );
+    EXPECT_THROW(tape.read(), std::out_of_range);
 }

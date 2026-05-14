@@ -1,5 +1,7 @@
 #include "tape/temp_file_tape.hpp"
 
+#include "utils/logger.hpp"
+
 #include <fstream>
 #include <vector>
 
@@ -13,16 +15,27 @@ TempFileTape::TempFileTape(const std::string& path, size_t size) : file_path_(pa
 TempFileTape::~TempFileTape() {
     try {
         std::filesystem::remove(file_path_);
+        LOG_INFO("Deleted temp tape: {}", file_path_);
     } catch (...) { }
 }
 
 void TempFileTape::create_and_init_file(size_t size) {
-    if (std::filesystem::exists(file_path_))
+    namespace fs = std::filesystem;
+
+    fs::path path(file_path_);
+    auto dir = path.parent_path();
+
+    if (!dir.empty() && !fs::exists(dir))
+        fs::create_directories(dir);
+
+    if (fs::exists(file_path_))
         throw std::runtime_error("Temp file already exists: " + file_path_);
 
     std::ofstream file(file_path_, std::ios::binary);
     if (!file.is_open())
         throw std::runtime_error("Failed to create temp file: " + file_path_);
+
+    LOG_INFO("Created temp tape: {}", file_path_);
 
     int32_t zero = 0;
 

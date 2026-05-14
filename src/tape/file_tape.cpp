@@ -1,5 +1,7 @@
 #include "tape/file_tape.hpp"
 
+#include "utils/logger.hpp"
+
 using namespace tape_sort::tape;
 
 FileTape::FileTape(const std::string& path) : file_path_(path) {
@@ -15,6 +17,8 @@ FileTape::FileTape(const std::string& path) : file_path_(path) {
 
     tape_size_ = static_cast<size_t>(size_bytes / CELL_SIZE);
     head_pos_ = 0;
+
+    LOG_DEBUG("Opened tape file: {}", file_path_);
 }
 
 size_t FileTape::size() const {

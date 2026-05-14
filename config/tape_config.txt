@@ -7,6 +7,6 @@ tape.rewind_delay_ms = 3        // comment and spaces for example
 
 memory.limit_bytes   = 1048576
 
-filesystem.tmp_dir   = "./tmp"
+filesystem.tmp_dir   = ./tmp
 
 log.enabled          = true

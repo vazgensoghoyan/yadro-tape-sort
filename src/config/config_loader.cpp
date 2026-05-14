@@ -1,5 +1,7 @@
 #include "config/config_loader.hpp"
 
+#include "utils/logger.hpp"
+
 #include <fstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -71,6 +73,8 @@ AppConfig ConfigLoader::load(const std::string& path) {
     config.filesystem.tmp_dir = require("filesystem.tmp_dir");
 
     config.log.enabled = parse_bool(require("log.enabled"));
+
+    LOG_INFO("Loaded config from {}", path);
 
     return config;
 }

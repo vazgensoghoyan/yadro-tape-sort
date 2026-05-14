@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <algorithm>
+#include <chrono>
 
 #include "app/app.hpp"
 
@@ -21,42 +23,40 @@ protected:
         std::string config;
     };
 
-protected:
     void SetUp() override {
-        fs::create_directories("tmp_test");
+        base_dir = "tmp_test_" + unique_suffix();
+        fs::create_directories(base_dir);
+        fs::create_directories(base_dir + "/tmp");
     }
 
     void TearDown() override {
-        fs::remove_all("tmp_test");
+        std::error_code ec;
+        fs::remove_all(base_dir, ec);
     }
 
     TestFiles make_files() {
-        static int id = 0;
-
         return TestFiles{
-            .input  = "tmp_test/input_" + std::to_string(id) + ".bin",
-            .output = "tmp_test/output_" + std::to_string(id) + ".bin",
-            .config = "tmp_test/config_" + std::to_string(id++) + ".cfg"
+            .input  = base_dir + "/input.bin",
+            .output = base_dir + "/output.bin",
+            .config = base_dir + "/config.cfg"
         };
     }
 
     void write_binary(const std::string& path, const std::vector<int32_t>& data) {
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
-
         for (auto v : data)
             f.write(reinterpret_cast<const char*>(&v), sizeof(v));
     }
 
-    void write_config(const std::string& path) {
+    void write_config_full(const std::string& path, size_t memory_limit = 1024) {
         std::ofstream f(path);
-
         f <<
             "tape.read_delay_ms=0\n"
             "tape.write_delay_ms=0\n"
             "tape.move_delay_ms=0\n"
             "tape.rewind_delay_ms=0\n"
-            "memory.limit_bytes=1024\n"
-            "filesystem.tmp_dir=tmp_test/tmp\n"
+            "memory.limit_bytes=" << memory_limit << "\n"
+            "filesystem.tmp_dir=" << base_dir << "/tmp\n"
             "log.enabled=false\n";
     }
 
@@ -73,83 +73,175 @@ protected:
     }
 
     ExitCode run_app(const TestFiles& files) {
-        const char* argv[] = {
+        std::vector<std::string> args = {
             "app",
-            files.input.c_str(),
-            files.output.c_str(),
-            files.config.c_str()
+            files.input,
+            files.output,
+            files.config
         };
 
+        std::vector<char*> argv;
+        for (auto& s : args)
+            argv.push_back(s.data());
+
         App app;
-        return app.run(4, const_cast<char**>(argv));
+        return app.run(static_cast<int>(argv.size()), argv.data());
     }
+
+    std::string unique_suffix() {
+        return std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()
+        );
+    }
+
+protected:
+    std::string base_dir;
 };
 
 } // namespace
 
-// -------------------- TESTS --------------------
-
-TEST_F(AppTest, SortsUnsortedArray)
-{
+TEST_F(AppTest, SortsUnsortedArray) {
     auto files = make_files();
 
     write_binary(files.input, {5, 1, 4, 2, 3});
-    write_config(files.config);
+    write_config_full(files.config);
 
-    auto code = run_app(files);
+    EXPECT_EQ(run_app(files), ExitCode::Success);
 
-    EXPECT_EQ(code, ExitCode::Success);
-    EXPECT_EQ(read_binary(files.output), (std::vector<int32_t>{1, 2, 3, 4, 5}));
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{1, 2, 3, 4, 5}));
 }
 
-TEST_F(AppTest, AlreadySortedArray)
-{
+TEST_F(AppTest, AlreadySortedArray) {
     auto files = make_files();
 
     write_binary(files.input, {1, 2, 3, 4, 5});
-    write_config(files.config);
+    write_config_full(files.config);
 
-    auto code = run_app(files);
+    EXPECT_EQ(run_app(files), ExitCode::Success);
 
-    EXPECT_EQ(code, ExitCode::Success);
-    EXPECT_EQ(read_binary(files.output), (std::vector<int32_t>{1, 2, 3, 4, 5}));
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{1, 2, 3, 4, 5}));
 }
 
-TEST_F(AppTest, ReverseSortedArray)
-{
+TEST_F(AppTest, ReverseSortedArray) {
     auto files = make_files();
 
     write_binary(files.input, {5, 4, 3, 2, 1});
-    write_config(files.config);
+    write_config_full(files.config);
 
-    auto code = run_app(files);
+    EXPECT_EQ(run_app(files), ExitCode::Success);
 
-    EXPECT_EQ(code, ExitCode::Success);
-    EXPECT_EQ(read_binary(files.output), (std::vector<int32_t>{1, 2, 3, 4, 5}));
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{1, 2, 3, 4, 5}));
 }
 
-TEST_F(AppTest, SingleElementArray)
-{
+TEST_F(AppTest, SingleElementArray) {
     auto files = make_files();
 
     write_binary(files.input, {42});
-    write_config(files.config);
+    write_config_full(files.config);
 
-    auto code = run_app(files);
+    EXPECT_EQ(run_app(files), ExitCode::Success);
 
-    EXPECT_EQ(code, ExitCode::Success);
-    EXPECT_EQ(read_binary(files.output), (std::vector<int32_t>{42}));
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{42}));
 }
 
-TEST_F(AppTest, InvalidArgumentsReturnError)
-{
-    char* argv[] = {
-        (char*)"app",
-        (char*)"only_one_arg"
-    };
+TEST_F(AppTest, EmptyInputFile) {
+    auto files = make_files();
+
+    write_binary(files.input, {});
+    write_config_full(files.config);
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+    EXPECT_TRUE(read_binary(files.output).empty());
+}
+
+TEST_F(AppTest, HandlesDuplicates) {
+    auto files = make_files();
+
+    write_binary(files.input, {5, 1, 5, 1, 5});
+    write_config_full(files.config);
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{1, 1, 5, 5, 5}));
+}
+
+TEST_F(AppTest, HandlesNegativeNumbers) {
+    auto files = make_files();
+
+    write_binary(files.input, {-1, -10, 5, 0, 3});
+    write_config_full(files.config);
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{-10, -1, 0, 3, 5}));
+}
+
+TEST_F(AppTest, RandomArrayCorrectness) {
+    auto files = make_files();
+
+    std::vector<int32_t> data(2000);
+
+    for (auto& x : data)
+        x = rand() % 10000 - 5000;
+
+    write_binary(files.input, data);
+    write_config_full(files.config);
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+
+    auto expected = data;
+    std::sort(expected.begin(), expected.end());
+
+    EXPECT_EQ(read_binary(files.output), expected);
+}
+
+TEST_F(AppTest, LargeInputStressTest) {
+    auto files = make_files();
+
+    std::vector<int32_t> data;
+    data.reserve(5000);
+
+    for (int i = 0; i < 5000; ++i)
+        data.push_back(rand());
+
+    write_binary(files.input, data);
+    write_config_full(files.config);
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+
+    auto expected = data;
+    std::sort(expected.begin(), expected.end());
+
+    EXPECT_EQ(read_binary(files.output), expected);
+}
+
+TEST_F(AppTest, VerySmallMemoryLimit) {
+    auto files = make_files();
+
+    write_binary(files.input, {5, 3, 1, 4, 2});
+    write_config_full(files.config, 4); // 1 int32 only
+
+    EXPECT_EQ(run_app(files), ExitCode::Success);
+
+    EXPECT_EQ(read_binary(files.output),
+              (std::vector<int32_t>{1, 2, 3, 4, 5}));
+}
+
+TEST_F(AppTest, InvalidArgumentsReturnError) {
+    std::vector<std::string> args = {"app", "only_one_arg"};
+
+    std::vector<char*> argv;
+    for (auto& s : args)
+        argv.push_back(s.data());
 
     App app;
-    auto code = app.run(2, argv);
+    auto code = app.run(static_cast<int>(argv.size()), argv.data());
 
     EXPECT_NE(code, ExitCode::Success);
 }

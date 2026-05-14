@@ -28,6 +28,11 @@ public:
     bool can_move_left() const override;
 
 private:
+    void ensure_opened() const;
+    void apply_position();
+    void validate_position() const;
+
+private:
     std::fstream file_;
     std::string file_path_;
 

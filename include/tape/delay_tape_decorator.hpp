@@ -1,4 +1,4 @@
-#pragma once
+#pragma once // tape/delay_tape_decorator.hpp
 
 #include <memory>
 #include <chrono>
@@ -11,8 +11,7 @@ namespace tape_sort::tape {
 
 class DelayTapeDecorator final : public ITape {
 public:
-    DelayTapeDecorator(ITape& tape,
-                       const config::TapeConfig& config);
+    DelayTapeDecorator(ITape& tape, const config::TapeConfig& config);
 
     ~DelayTapeDecorator() override = default;
 

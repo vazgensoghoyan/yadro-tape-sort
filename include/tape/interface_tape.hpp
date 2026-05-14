@@ -9,7 +9,7 @@ class ITape {
 public:
     virtual ~ITape() = default;
 
-    virtual int32_t read() = 0;
+    virtual int32_t read() = 0;     // read/write сами головку не двигают
     virtual void write(int32_t value) = 0;
 
     virtual void move_right() = 0;

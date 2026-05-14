@@ -8,6 +8,9 @@
 
 namespace tape_sort::tape {
 
+// Обязан сам создавать файл. Но получает на вход название файла, путь к нему
+// Если такой файл уже существует, ошибка
+
 class TempFileTape final : public ITape {
 public:
     TempFileTape(const std::string& path, size_t size);

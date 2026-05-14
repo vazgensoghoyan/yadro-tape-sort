@@ -89,6 +89,8 @@ void FileTape::seek_to_curr_position() {
 
     const auto offset = byte_offset(head_pos_ - 1);
 
+    file_.clear();
+
     file_.seekg(offset, std::ios::beg);
     file_.seekp(offset, std::ios::beg);
 

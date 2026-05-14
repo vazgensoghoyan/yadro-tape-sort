@@ -25,7 +25,7 @@ public:
     virtual void move_right() = 0;
     virtual void move_left() = 0;
 
-    virtual void rewind() = 0;      // перематывает на BOF
+    virtual void rewind() = 0;      // перематывает на элемент 0
 
     virtual bool is_bof() const = 0;
     virtual bool is_eof() const = 0;

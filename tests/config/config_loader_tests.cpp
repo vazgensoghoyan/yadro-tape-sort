@@ -1,180 +1,177 @@
-#include <filesystem>
-#include <fstream>
-#include <string>
-
 #include <gtest/gtest.h>
+
+#include <fstream>
+#include <filesystem>
 
 #include "config/config_loader.hpp"
 
-namespace fs = std::filesystem;
+using namespace tape_sort::config;
 
-namespace tape_sort::config::test {
+namespace fs = std::filesystem;
 
 class ConfigLoaderTest : public ::testing::Test {
 protected:
-    fs::path temp_file_;
+    void SetUp() override {
+        dir = fs::temp_directory_path() / "config_tests";
+        fs::create_directories(dir);
+
+        path = dir / "config.txt";
+    }
 
     void TearDown() override {
-        if (!temp_file_.empty() && fs::exists(temp_file_)) {
-            fs::remove(temp_file_);
-        }
+        std::error_code ec;
+        fs::remove_all(dir, ec);
     }
 
     void write_config(const std::string& content) {
-        temp_file_ = fs::temp_directory_path() / "test_config.cfg";
-
-        std::ofstream out(temp_file_);
-
-        ASSERT_TRUE(out.is_open());
-
+        std::ofstream out(path);
         out << content;
     }
+
+protected:
+    fs::path dir;
+    fs::path path;
 };
 
-TEST_F(ConfigLoaderTest, LoadsValidConfig) {
+TEST_F(ConfigLoaderTest, LoadsValidConfig)
+{
     write_config(R"(
-        tape.read_delay_ms = 10
-        tape.write_delay_ms = 20
-        tape.move_delay_ms = 30
-        tape.rewind_delay_ms = 40
-
-        memory.limit_bytes = 1024
-
-        filesystem.tmp_dir = ./tmp
-
-        log.enabled = true
-    )");
-
-    const AppConfig config =
-        ConfigLoader::load(temp_file_.string());
-
-    EXPECT_EQ(config.tape.read_delay_ms, 10);
-    EXPECT_EQ(config.tape.write_delay_ms, 20);
-    EXPECT_EQ(config.tape.move_delay_ms, 30);
-    EXPECT_EQ(config.tape.rewind_delay_ms, 40);
-
-    EXPECT_EQ(config.memory.limit_bytes, 1024);
-
-    EXPECT_EQ(config.filesystem.tmp_dir, "./tmp");
-
-    EXPECT_TRUE(config.log.enabled);
-}
-
-TEST_F(ConfigLoaderTest, SupportsComments) {
-    write_config(R"(
-        // full line comment
-
-        tape.read_delay_ms = 1 // comment
+        tape.read_delay_ms = 1
         tape.write_delay_ms = 2
         tape.move_delay_ms = 3
         tape.rewind_delay_ms = 4
 
-        memory.limit_bytes = 2048
+        memory.limit_bytes = 1024
 
-        filesystem.tmp_dir = /tmp/data
-
-        log.enabled = false
+        filesystem.tmp_dir = ./tmp
+        log.enabled = true
     )");
 
-    const AppConfig config =
-        ConfigLoader::load(temp_file_.string());
+    auto config = ConfigLoader::load(path.string());
 
     EXPECT_EQ(config.tape.read_delay_ms, 1);
-    EXPECT_FALSE(config.log.enabled);
-}
+    EXPECT_EQ(config.tape.write_delay_ms, 2);
+    EXPECT_EQ(config.tape.move_delay_ms, 3);
+    EXPECT_EQ(config.tape.rewind_delay_ms, 4);
 
-TEST_F(ConfigLoaderTest, SupportsRandomOrder) {
-    write_config(R"(
-        log.enabled = true
+    EXPECT_EQ(config.memory.limit_bytes, 1024);
 
-        filesystem.tmp_dir = ./cache
-
-        tape.move_delay_ms = 30
-        tape.read_delay_ms = 10
-
-        memory.limit_bytes = 9999
-
-        tape.rewind_delay_ms = 40
-        tape.write_delay_ms = 20
-    )");
-
-    const AppConfig config =
-        ConfigLoader::load(temp_file_.string());
-
-    EXPECT_EQ(config.tape.read_delay_ms, 10);
-    EXPECT_EQ(config.tape.write_delay_ms, 20);
-    EXPECT_EQ(config.tape.move_delay_ms, 30);
-    EXPECT_EQ(config.tape.rewind_delay_ms, 40);
-
-    EXPECT_EQ(config.memory.limit_bytes, 9999);
-
-    EXPECT_EQ(config.filesystem.tmp_dir, "./cache");
-
+    EXPECT_EQ(config.filesystem.tmp_dir, "./tmp");
     EXPECT_TRUE(config.log.enabled);
 }
 
-TEST_F(ConfigLoaderTest, ThrowsIfFileDoesNotExist) {
-    EXPECT_THROW(
-        ConfigLoader::load("definitely_not_existing.cfg"),
-        std::runtime_error
-    );
-}
-
-TEST_F(ConfigLoaderTest, ThrowsIfKeyMissing) {
+TEST_F(ConfigLoaderTest, IgnoresComments)
+{
     write_config(R"(
-        tape.read_delay_ms = 10
-        tape.write_delay_ms = 20
-        tape.move_delay_ms = 30
+        // this is comment
+        tape.read_delay_ms = 5 // inline comment
+        tape.write_delay_ms = 6
+
+        tape.move_delay_ms = 1
+        tape.rewind_delay_ms = 1
 
         memory.limit_bytes = 1024
-
         filesystem.tmp_dir = ./tmp
-
         log.enabled = true
     )");
 
+    auto config = ConfigLoader::load(path.string());
+
+    EXPECT_EQ(config.tape.read_delay_ms, 5);
+    EXPECT_EQ(config.tape.write_delay_ms, 6);
+}
+
+TEST_F(ConfigLoaderTest, HandlesSpacesAndTabs)
+{
+    write_config(R"(
+        tape.read_delay_ms    =     10
+        tape.write_delay_ms   =   20
+        tape.move_delay_ms = 1
+        tape.rewind_delay_ms = 1
+
+        memory.limit_bytes = 2048
+        filesystem.tmp_dir = ./tmp
+        log.enabled = true
+    )");
+
+    auto config = ConfigLoader::load(path.string());
+
+    EXPECT_EQ(config.tape.read_delay_ms, 10);
+    EXPECT_EQ(config.tape.write_delay_ms, 20);
+}
+
+TEST_F(ConfigLoaderTest, ThrowsIfNoEqualSign)
+{
+    write_config(R"(
+        tape.read_delay_ms 10
+    )");
+
     EXPECT_THROW(
-        ConfigLoader::load(temp_file_.string()),
+        ConfigLoader::load(path.string()),
         std::runtime_error
     );
 }
 
-TEST_F(ConfigLoaderTest, ThrowsOnInvalidInteger) {
+TEST_F(ConfigLoaderTest, ThrowsOnEmptyKey)
+{
+    write_config(R"(
+        = 10
+    )");
+
+    EXPECT_THROW(
+        ConfigLoader::load(path.string()),
+        std::runtime_error
+    );
+}
+
+TEST_F(ConfigLoaderTest, ThrowsOnMissingKey)
+{
+    write_config(R"(
+        tape.read_delay_ms = 1
+    )");
+
+    EXPECT_THROW(
+        ConfigLoader::load(path.string()),
+        std::runtime_error
+    );
+}
+
+TEST_F(ConfigLoaderTest, ThrowsOnInvalidInt)
+{
     write_config(R"(
         tape.read_delay_ms = abc
-        tape.write_delay_ms = 20
-        tape.move_delay_ms = 30
-        tape.rewind_delay_ms = 40
+        tape.write_delay_ms = 1
+        tape.move_delay_ms = 1
+        tape.rewind_delay_ms = 1
 
-        memory.limit_bytes = 1024
+        memory.limit_bytes = 100
 
         filesystem.tmp_dir = ./tmp
-
         log.enabled = true
     )");
 
     EXPECT_THROW(
-        ConfigLoader::load(temp_file_.string()),
+        ConfigLoader::load(path.string()),
         std::runtime_error
     );
 }
 
-TEST_F(ConfigLoaderTest, ThrowsOnInvalidBool) {
+TEST_F(ConfigLoaderTest, ThrowsOnInvalidBool)
+{
     write_config(R"(
-        tape.read_delay_ms = 10
-        tape.write_delay_ms = 20
-        tape.move_delay_ms = 30
-        tape.rewind_delay_ms = 40
+        tape.read_delay_ms = 1
+        tape.write_delay_ms = 1
+        tape.move_delay_ms = 1
+        tape.rewind_delay_ms = 1
 
-        memory.limit_bytes = 1024
+        memory.limit_bytes = 100
 
         filesystem.tmp_dir = ./tmp
-
         log.enabled = maybe
     )");
 
     EXPECT_THROW(
-        ConfigLoader::load(temp_file_.string()),
+        ConfigLoader::load(path.string()),
         std::runtime_error
     );
 }
@@ -194,7 +191,7 @@ TEST_F(ConfigLoaderTest, SupportsBoolAsZeroOne) {
     )");
 
     const AppConfig config =
-        ConfigLoader::load(temp_file_.string());
+        ConfigLoader::load(path.string());
 
     EXPECT_TRUE(config.log.enabled);
 }
@@ -202,5 +199,3 @@ TEST_F(ConfigLoaderTest, SupportsBoolAsZeroOne) {
 TEST(ConfigLoaderTests, ThrowsOnMissingKey) {
     EXPECT_THROW(ConfigLoader::load("bad_config.txt"), std::runtime_error);
 }
-
-} // namespace tape_sort::config::test

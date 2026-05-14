@@ -20,15 +20,10 @@ struct FileSystemConfig {
     std::string tmp_dir;
 };
 
-struct LogConfig {
-    bool enabled;
-};
-
 struct AppConfig {
     TapeConfig tape;
     MemoryConfig memory;
     FileSystemConfig filesystem;
-    LogConfig log;
 };
 
 } // namespace tape_sort::config

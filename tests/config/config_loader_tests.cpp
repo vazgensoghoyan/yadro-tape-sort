@@ -44,7 +44,7 @@ TEST_F(ConfigLoaderTest, LoadsValidConfig)
         memory.limit_bytes = 1024
 
         filesystem.tmp_dir = ./tmp
-        log.enabled = true
+        log. = true
     )");
 
     auto config = ConfigLoader::load(path.string());
@@ -57,7 +57,6 @@ TEST_F(ConfigLoaderTest, LoadsValidConfig)
     EXPECT_EQ(config.memory.limit_bytes, 1024);
 
     EXPECT_EQ(config.filesystem.tmp_dir, "./tmp");
-    EXPECT_TRUE(config.log.enabled);
 }
 
 TEST_F(ConfigLoaderTest, IgnoresComments)
@@ -72,7 +71,6 @@ TEST_F(ConfigLoaderTest, IgnoresComments)
 
         memory.limit_bytes = 1024
         filesystem.tmp_dir = ./tmp
-        log.enabled = true
     )");
 
     auto config = ConfigLoader::load(path.string());
@@ -91,7 +89,6 @@ TEST_F(ConfigLoaderTest, HandlesSpacesAndTabs)
 
         memory.limit_bytes = 2048
         filesystem.tmp_dir = ./tmp
-        log.enabled = true
     )");
 
     auto config = ConfigLoader::load(path.string());
@@ -147,53 +144,12 @@ TEST_F(ConfigLoaderTest, ThrowsOnInvalidInt)
         memory.limit_bytes = 100
 
         filesystem.tmp_dir = ./tmp
-        log.enabled = true
     )");
 
     EXPECT_THROW(
         ConfigLoader::load(path.string()),
         std::runtime_error
     );
-}
-
-TEST_F(ConfigLoaderTest, ThrowsOnInvalidBool)
-{
-    write_config(R"(
-        tape.read_delay_ms = 1
-        tape.write_delay_ms = 1
-        tape.move_delay_ms = 1
-        tape.rewind_delay_ms = 1
-
-        memory.limit_bytes = 100
-
-        filesystem.tmp_dir = ./tmp
-        log.enabled = maybe
-    )");
-
-    EXPECT_THROW(
-        ConfigLoader::load(path.string()),
-        std::runtime_error
-    );
-}
-
-TEST_F(ConfigLoaderTest, SupportsBoolAsZeroOne) {
-    write_config(R"(
-        tape.read_delay_ms = 10
-        tape.write_delay_ms = 20
-        tape.move_delay_ms = 30
-        tape.rewind_delay_ms = 40
-
-        memory.limit_bytes = 1024
-
-        filesystem.tmp_dir = ./tmp
-
-        log.enabled = 1
-    )");
-
-    const AppConfig config =
-        ConfigLoader::load(path.string());
-
-    EXPECT_TRUE(config.log.enabled);
 }
 
 TEST(ConfigLoaderTests, ThrowsOnMissingKey) {

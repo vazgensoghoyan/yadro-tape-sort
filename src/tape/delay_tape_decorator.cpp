@@ -15,7 +15,7 @@ void DelayTapeDecorator::sleep_ms(int ms) {
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
-int DelayTapeDecorator::read() {
+int32_t DelayTapeDecorator::read() {
     sleep_ms(config_.read_delay_ms);
     return tape_.read();
 }

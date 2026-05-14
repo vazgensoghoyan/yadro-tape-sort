@@ -12,7 +12,6 @@ namespace { // helper functions
 
 std::string trim(const std::string& s);
 std::string remove_comment(const std::string& line);
-bool parse_bool(const std::string& value);
 int parse_int(const std::string& value);
 size_t parse_size_t(const std::string& value);
 
@@ -72,8 +71,6 @@ AppConfig ConfigLoader::load(const std::string& path) {
 
     config.filesystem.tmp_dir = require("filesystem.tmp_dir");
 
-    config.log.enabled = parse_bool(require("log.enabled"));
-
     LOG_INFO("Loaded config from {}", path);
 
     return config;
@@ -102,16 +99,6 @@ std::string remove_comment(const std::string& line) {
         return line;
 
     return line.substr(0, pos);
-}
-
-bool parse_bool(const std::string& value) {
-    if (value == "true" || value == "1")
-        return true;
-
-    if (value == "false" || value == "0")
-        return false;
-
-    throw std::runtime_error("Invalid bool value: " + value);
 }
 
 int parse_int(const std::string& value) {

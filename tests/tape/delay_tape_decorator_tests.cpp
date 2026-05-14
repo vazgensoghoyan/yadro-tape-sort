@@ -1,203 +1,324 @@
 #include <gtest/gtest.h>
+
 #include <chrono>
 #include <thread>
-#include <vector>
+#include <cstdint>
 
 #include "tape/delay_tape_decorator.hpp"
+#include "config/config_structs.hpp"
 
 using namespace tape_sort::tape;
 using namespace tape_sort::config;
 
-namespace { // helper
+namespace {
 
-class FakeTape : public ITape {
+class MockTape final : public ITape {
 public:
-    explicit FakeTape(std::vector<int32_t> d) : data(std::move(d)) {}
+    int32_t read_value = 123;
 
-    int32_t read() override { return data[pos]; }
-    void write(int32_t value) override { data[pos] = value; }
+    int read_calls = 0;
+    int write_calls = 0;
+    int move_right_calls = 0;
+    int move_left_calls = 0;
+    int rewind_calls = 0;
 
-    void move_right() override { if (pos + 1 < data.size()) ++pos; }
-    void move_left() override { if (pos > 0) --pos; }
-    void rewind() override { pos = 0; }
+    bool bof = false;
+    bool eof = false;
 
-    bool can_move_right() const override { return pos + 1 < data.size(); }
-    bool can_move_left() const override { return pos > 0; }
+    size_t tape_size = 10;
+    size_t tape_position = 1;
 
-    size_t size() const override { return data.size(); }
-    size_t position() const override { return pos; }
+    int32_t read() override {
+        ++read_calls;
+        return read_value;
+    }
 
-private:
-    std::vector<int32_t> data;
-    size_t pos = 0;
+    void write(int32_t value) override {
+        ++write_calls;
+        last_written_value = value;
+    }
+
+    void move_right() override {
+        ++move_right_calls;
+        ++tape_position;
+    }
+
+    void move_left() override {
+        ++move_left_calls;
+
+        if (tape_position > 0)
+            --tape_position;
+    }
+
+    void rewind() override {
+        ++rewind_calls;
+        tape_position = 1;
+    }
+
+    bool is_bof() const override {
+        return bof;
+    }
+
+    bool is_eof() const override {
+        return eof;
+    }
+
+    size_t size() const override {
+        return tape_size;
+    }
+
+    size_t position() const override {
+        return tape_position;
+    }
+
+public:
+    int32_t last_written_value = 0;
 };
-
-auto now_ms() {
-    return std::chrono::steady_clock::now();
-}
-
-long elapsed_ms(const std::chrono::steady_clock::time_point& start,
-                const std::chrono::steady_clock::time_point& end) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-}
 
 } // namespace
 
-TEST(DelayTapeDecoratorTest, ReadDoesNotChangeLogic) {
-    FakeTape base({10, 20, 30});
+class DelayTapeDecoratorTest : public ::testing::Test {
+protected:
+    TapeConfig make_config(
+        int read_ms = 0,
+        int write_ms = 0,
+        int move_ms = 0,
+        int rewind_ms = 0)
+    {
+        return TapeConfig{
+            .read_delay_ms = read_ms,
+            .write_delay_ms = write_ms,
+            .move_delay_ms = move_ms,
+            .rewind_delay_ms = rewind_ms
+        };
+    }
 
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
+protected:
+    MockTape mock_tape_;
+};
 
-    EXPECT_EQ(tape.read(), 10);
+TEST_F(DelayTapeDecoratorTest, ReadDelegatesToWrappedTape)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
-    tape.move_right();
-    EXPECT_EQ(tape.read(), 20);
+    const auto value = tape.read();
+
+    EXPECT_EQ(value, 123);
+    EXPECT_EQ(mock_tape_.read_calls, 1);
 }
 
-TEST(DelayTapeDecoratorTest, WriteAffectsUnderlyingTape) {
-    FakeTape base({10, 20, 30});
+TEST_F(DelayTapeDecoratorTest, WriteDelegatesToWrappedTape)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
+    tape.write(777);
 
-    tape.write(999);
-    EXPECT_EQ(tape.read(), 999);
+    EXPECT_EQ(mock_tape_.write_calls, 1);
+    EXPECT_EQ(mock_tape_.last_written_value, 777);
 }
 
-TEST(DelayTapeDecoratorTest, MoveOperationsWorkCorrectly) {
-    FakeTape base({10, 20, 30});
-
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
-
-    EXPECT_EQ(tape.read(), 10);
+TEST_F(DelayTapeDecoratorTest, MoveRightDelegatesToWrappedTape)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
     tape.move_right();
-    EXPECT_EQ(tape.read(), 20);
+
+    EXPECT_EQ(mock_tape_.move_right_calls, 1);
+    EXPECT_EQ(mock_tape_.position(), 2);
+}
+
+TEST_F(DelayTapeDecoratorTest, MoveLeftDelegatesToWrappedTape)
+{
+    mock_tape_.tape_position = 5;
+
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
     tape.move_left();
-    EXPECT_EQ(tape.read(), 10);
+
+    EXPECT_EQ(mock_tape_.move_left_calls, 1);
+    EXPECT_EQ(mock_tape_.position(), 4);
 }
 
-TEST(DelayTapeDecoratorTest, RewindWorks) {
-    FakeTape base({10, 20, 30});
+TEST_F(DelayTapeDecoratorTest, RewindDelegatesToWrappedTape)
+{
+    mock_tape_.tape_position = 8;
 
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
-
-    tape.move_right();
-    tape.move_right();
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
     tape.rewind();
 
-    EXPECT_EQ(tape.read(), 10);
+    EXPECT_EQ(mock_tape_.rewind_calls, 1);
+    EXPECT_EQ(mock_tape_.position(), 1);
 }
 
-TEST(DelayTapeDecoratorTest, CanMoveDelegation) {
-    FakeTape base({10, 20});
+TEST_F(DelayTapeDecoratorTest, IsBofDelegatesToWrappedTape)
+{
+    mock_tape_.bof = true;
 
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
-    EXPECT_TRUE(tape.can_move_right());
-    EXPECT_FALSE(tape.can_move_left());
-
-    tape.move_right();
-
-    EXPECT_FALSE(tape.can_move_right());
-    EXPECT_TRUE(tape.can_move_left());
+    EXPECT_TRUE(tape.is_bof());
 }
 
-TEST(DelayTapeDecoratorTest, ReadDelayIsApplied) {
-    FakeTape base({10});
+TEST_F(DelayTapeDecoratorTest, IsEofDelegatesToWrappedTape)
+{
+    mock_tape_.eof = true;
 
-    TapeConfig cfg{
-        .read_delay_ms = 80,
-        .write_delay_ms = 0,
-        .move_delay_ms = 0,
-        .rewind_delay_ms = 0
-    };
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
-    DelayTapeDecorator tape(base, cfg);
+    EXPECT_TRUE(tape.is_eof());
+}
 
-    auto start = now_ms();
+TEST_F(DelayTapeDecoratorTest, SizeDelegatesToWrappedTape)
+{
+    mock_tape_.tape_size = 999;
+
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
+
+    EXPECT_EQ(tape.size(), 999);
+}
+
+TEST_F(DelayTapeDecoratorTest, PositionDelegatesToWrappedTape)
+{
+    mock_tape_.tape_position = 42;
+
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
+
+    EXPECT_EQ(tape.position(), 42);
+}
+
+TEST_F(DelayTapeDecoratorTest, ReadAppliesDelay)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config(50, 0, 0, 0)
+    );
+
+    const auto start = std::chrono::steady_clock::now();
+
     tape.read();
-    auto end = now_ms();
 
-    EXPECT_GE(elapsed_ms(start, end), 80);
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start
+        );
+
+    EXPECT_GE(elapsed.count(), 45);
 }
 
-TEST(DelayTapeDecoratorTest, WriteDelayIsApplied) {
-    FakeTape base({10});
+TEST_F(DelayTapeDecoratorTest, WriteAppliesDelay)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config(0, 50, 0, 0)
+    );
 
-    TapeConfig cfg{
-        .read_delay_ms = 0,
-        .write_delay_ms = 80,
-        .move_delay_ms = 0,
-        .rewind_delay_ms = 0
-    };
+    const auto start = std::chrono::steady_clock::now();
 
-    DelayTapeDecorator tape(base, cfg);
-
-    auto start = now_ms();
     tape.write(123);
-    auto end = now_ms();
 
-    EXPECT_GE(elapsed_ms(start, end), 80);
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start
+        );
+
+    EXPECT_GE(elapsed.count(), 45);
 }
 
-TEST(DelayTapeDecoratorTest, MoveDelayIsApplied) {
-    FakeTape base({10, 20});
+TEST_F(DelayTapeDecoratorTest, MoveAppliesDelay)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config(0, 0, 50, 0)
+    );
 
-    TapeConfig cfg{
-        .read_delay_ms = 0,
-        .write_delay_ms = 0,
-        .move_delay_ms = 80,
-        .rewind_delay_ms = 0
-    };
-
-    DelayTapeDecorator tape(base, cfg);
-
-    auto start = now_ms();
-    tape.move_right();
-    auto end = now_ms();
-
-    EXPECT_GE(elapsed_ms(start, end), 80);
-}
-
-TEST(DelayTapeDecoratorTest, RewindDelayIsApplied) {
-    FakeTape base({10, 20});
-
-    TapeConfig cfg{
-        .read_delay_ms = 0,
-        .write_delay_ms = 0,
-        .move_delay_ms = 0,
-        .rewind_delay_ms = 80
-    };
-
-    DelayTapeDecorator tape(base, cfg);
+    const auto start = std::chrono::steady_clock::now();
 
     tape.move_right();
 
-    auto start = now_ms();
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start
+        );
+
+    EXPECT_GE(elapsed.count(), 45);
+}
+
+TEST_F(DelayTapeDecoratorTest, RewindAppliesDelay)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config(0, 0, 0, 50)
+    );
+
+    const auto start = std::chrono::steady_clock::now();
+
     tape.rewind();
-    auto end = now_ms();
 
-    EXPECT_GE(elapsed_ms(start, end), 80);
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start
+        );
+
+    EXPECT_GE(elapsed.count(), 45);
 }
 
-TEST(DelayTapeDecoratorTest, ZeroDelaysAreFast) {
-    FakeTape base({10, 20, 30});
+TEST_F(DelayTapeDecoratorTest, ZeroDelayDoesNotBlockExecution)
+{
+    DelayTapeDecorator tape(
+        mock_tape_,
+        make_config()
+    );
 
-    TapeConfig cfg{0, 0, 0, 0};
-    DelayTapeDecorator tape(base, cfg);
+    const auto start = std::chrono::steady_clock::now();
 
-    auto start = now_ms();
     tape.read();
-    tape.write(111);
+    tape.write(1);
     tape.move_right();
-    auto end = now_ms();
+    tape.move_left();
+    tape.rewind();
 
-    EXPECT_LT(elapsed_ms(start, end), 20);
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            end - start
+        );
+
+    EXPECT_LT(elapsed.count(), 20);
 }

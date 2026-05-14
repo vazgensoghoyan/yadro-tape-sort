@@ -24,6 +24,9 @@ public:
     bool can_move_right() const override { return pos + 1 < data.size(); }
     bool can_move_left() const override { return pos > 0; }
 
+    size_t size() const override { return data.size(); }
+    size_t position() const override { return pos; }
+
 private:
     std::vector<int32_t> data;
     size_t pos = 0;

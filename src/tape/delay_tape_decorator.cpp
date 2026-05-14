@@ -47,3 +47,11 @@ bool DelayTapeDecorator::can_move_right() const {
 bool DelayTapeDecorator::can_move_left() const {
     return tape_.can_move_left();
 }
+
+size_t DelayTapeDecorator::size() const {
+    return tape_.size();
+}
+
+size_t DelayTapeDecorator::position() const {
+    return tape_.position();
+}

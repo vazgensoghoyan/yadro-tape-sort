@@ -2,7 +2,7 @@
 
 using namespace tape_sort::tape;
 
-FileTape::FileTape(const std::string& file_path) : file_path_(file_path) {
+FileTape::FileTape(const std::string& path) : file_path_(path) {
     file_.open(file_path_, std::ios::in | std::ios::out | std::ios::binary);
 
     if (!file_.is_open())
@@ -15,6 +15,18 @@ FileTape::FileTape(const std::string& file_path) : file_path_(file_path) {
 
     tape_size_ = static_cast<size_t>(size_bytes / CELL_SIZE);
     head_pos_ = 0;
+}
+
+size_t FileTape::size() const {
+    return tape_size_;
+}
+
+size_t FileTape::position() const {
+    return head_pos_;
+}
+
+const std::string& FileTape::file_path() const {
+    return file_path_;
 }
 
 std::streamoff FileTape::byte_offset(size_t pos) const {
@@ -68,8 +80,6 @@ void FileTape::write(int32_t value) {
 
     if (!file_)
         throw std::runtime_error("Failed to write to tape: " + file_path_);
-
-    file_.flush();
 }
 
 void FileTape::move_right() {
@@ -84,6 +94,7 @@ void FileTape::move_left() {
 
 void FileTape::rewind() {
     head_pos_ = 0;
+    file_.clear();
 }
 
 bool FileTape::can_move_right() const {

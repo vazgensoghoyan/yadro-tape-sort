@@ -26,6 +26,9 @@ public:
     bool can_move_right() const override;
     bool can_move_left() const override;
 
+    size_t size() const override;
+    size_t position() const override;
+
 private:
     static void sleep_ms(int ms);
 

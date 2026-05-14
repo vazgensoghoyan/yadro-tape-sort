@@ -13,7 +13,7 @@ namespace tape_sort::tape {
 
 class FileTape final : public ITape {
 public:
-    explicit FileTape(const std::string& file_path);
+    explicit FileTape(const std::string& path);
 
     ~FileTape() override = default;
 
@@ -26,6 +26,11 @@ public:
 
     bool can_move_right() const override;
     bool can_move_left() const override;
+
+    size_t size() const override;
+    size_t position() const override;
+
+    const std::string& file_path() const;
 
 private:
     void ensure_opened() const;

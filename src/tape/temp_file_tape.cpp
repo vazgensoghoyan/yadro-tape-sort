@@ -29,8 +29,11 @@ void TempFileTape::zeros_init_file(size_t size) {
         throw std::runtime_error("Failed to open temp file: " + file_path_);
 
     int32_t zero = 0;
-    for (size_t i = 0; i < size; ++i)
+    for (size_t i = 0; i < size; ++i) {
         file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+        if (!file)
+            throw std::runtime_error("Failed while initializing temp tape: " + file_path_);
+    }
 
     LOG_DEBUG("Created temp tape {} with size {}", file_path_, size);
 }

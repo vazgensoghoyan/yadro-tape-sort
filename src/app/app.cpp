@@ -11,8 +11,7 @@
 
 #include "sorter/tape_sorter.hpp"
 
-namespace tape_sort::app {
-
+using namespace tape_sort::app;
 using namespace tape_sort::config;
 using namespace tape_sort::tape;
 using namespace tape_sort::sorter;
@@ -51,7 +50,12 @@ App::Args App::parse_args(int argc, char** argv) {
 }
 
 void App::execute(const Args& args, const AppConfig& config) {
+
     FileTape input_file(args.input_path);
+
+    size_t output_size = input_file.size();
+    create_output_tape_file(args.output_path, output_size);
+    
     FileTape output_file(args.output_path);
 
     DelayTapeDecorator input_tape(input_file, config.tape);
@@ -62,4 +66,17 @@ void App::execute(const Args& args, const AppConfig& config) {
     LOG_INFO("Starting sort: {} -> {}", args.input_path, args.output_path);
 
     sorter.sort(input_tape, output_tape);
+}
+
+void App::create_output_tape_file(const std::string& path, size_t size) {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file.is_open())
+        throw std::runtime_error("Failed to create output tape file: " + path);
+
+    int32_t zero = 0;
+    for (size_t i = 0; i < size; ++i) {
+        file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+        if (!file)
+            throw std::runtime_error("Failed while initializing output tape: " + path);
+    }
 }

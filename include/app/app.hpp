@@ -26,6 +26,8 @@ private:
     Args parse_args(int argc, char** argv);
 
     void execute(const Args& args, const config::AppConfig& config);
+
+    static void create_output_tape_file(const std::string& path, size_t size);
 };
 
 } // namespace tape_sort::app

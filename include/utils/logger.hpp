@@ -8,8 +8,6 @@
 
 // RMK: взято из другого моего проекта
 
-#define LOGGING_ENABLED
-
 #ifdef LOGGING_ENABLED
     #define LOG_INFO(fmt, ...)  tape_sort::utils::Logger::info(fmt, ##__VA_ARGS__)
     #define LOG_WARN(fmt, ...)  tape_sort::utils::Logger::warn(fmt, ##__VA_ARGS__)

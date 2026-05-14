@@ -6,10 +6,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(ENABLE_WARNINGS "Enable compiler warnings" ON)
 option(BUILD_TESTS "Build tests" ON)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+option(ENABLE_LOGGING "Enable logging" ON)
 
 function(enable_project_warnings target)
     if (ENABLE_WARNINGS)
@@ -48,6 +49,12 @@ target_compile_features(tape_sort_lib PUBLIC cxx_std_23)
 
 enable_project_warnings(tape_sort_lib)
 
+if (ENABLE_LOGGING)
+    target_compile_definitions(tape_sort_lib
+        PUBLIC LOGGING_ENABLED
+    )
+endif()
+
 add_executable(tape_sort
     src/main.cpp
 )
@@ -56,8 +63,6 @@ target_link_libraries(tape_sort
     PRIVATE
         tape_sort_lib
 )
-
-target_compile_features(tape_sort PUBLIC cxx_std_23)
 
 enable_project_warnings(tape_sort)
 
@@ -89,8 +94,6 @@ if (BUILD_TESTS)
             tape_sort_lib
             GTest::gtest_main
     )
-
-    target_compile_features(tape_sort_tests PUBLIC cxx_std_23)
 
     enable_project_warnings(tape_sort_tests)
 

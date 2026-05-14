@@ -1,9 +1,5 @@
 #include "tape/file_tape.hpp"
 
-#include <stdexcept>
-#include <vector>
-#include <filesystem>
-
 using namespace tape_sort::tape;
 
 FileTape::FileTape(const std::string& file_path) : file_path_(file_path) {
@@ -11,9 +7,28 @@ FileTape::FileTape(const std::string& file_path) : file_path_(file_path) {
 
     if (!file_.is_open())
         throw std::runtime_error("Failed to open tape file: " + file_path_);
-    
+
+    const auto size_bytes = std::filesystem::file_size(file_path_);
+
+    if (size_bytes % CELL_SIZE)
+        throw std::runtime_error("Wrong file format: " + file_path_);
+
+    tape_size_ = static_cast<size_t>(size_bytes / CELL_SIZE);
     head_pos_ = 0;
-    tape_size_ = std::filesystem::file_size(file_path_);
+}
+
+std::streamoff FileTape::byte_offset(size_t pos) const {
+    return static_cast<std::streamoff>(pos * CELL_SIZE);
+}
+
+void FileTape::seek_to_curr_position() {
+    const auto offset = byte_offset(head_pos_);
+
+    file_.seekg(offset, std::ios::beg);
+    file_.seekp(offset, std::ios::beg);
+
+    if (!file_)
+        throw std::runtime_error("Seek failed on tape file: " + file_path_);
 }
 
 void FileTape::ensure_opened() const {
@@ -21,22 +36,17 @@ void FileTape::ensure_opened() const {
         throw std::runtime_error("Tape file is not open: " + file_path_);
 }
 
-void FileTape::validate_position() const {
+void FileTape::ensure_position() const {
     if (head_pos_ >= tape_size_)
-        throw std::runtime_error("Tape head out of range");
+        throw std::out_of_range("Out of tape bounds");
 }
 
-void FileTape::apply_position() {
-    file_.clear();
-    file_.seekp(head_pos_ * sizeof(int32_t), std::ios::beg);
-}
-
-int FileTape::read() {
+int32_t FileTape::read() {
     ensure_opened();
-    validate_position();
+    ensure_position();
 
     file_.clear();
-    apply_position();
+    seek_to_curr_position();
 
     int32_t value = 0;
     file_.read(reinterpret_cast<char*>(&value), sizeof(value));
@@ -49,10 +59,10 @@ int FileTape::read() {
 
 void FileTape::write(int32_t value) {
     ensure_opened();
-    validate_position();
+    ensure_position();
 
     file_.clear();
-    apply_position();
+    seek_to_curr_position();
 
     file_.write(reinterpret_cast<const char*>(&value), sizeof(value));
 
@@ -60,9 +70,6 @@ void FileTape::write(int32_t value) {
         throw std::runtime_error("Failed to write to tape: " + file_path_);
 
     file_.flush();
-
-    if (head_pos_ == tape_size_ - 1)
-        ++tape_size_;
 }
 
 void FileTape::move_right() {
@@ -80,7 +87,7 @@ void FileTape::rewind() {
 }
 
 bool FileTape::can_move_right() const {
-    return head_pos_ < tape_size_ - 1;
+    return head_pos_ + 1 < tape_size_;
 }
 
 bool FileTape::can_move_left() const {

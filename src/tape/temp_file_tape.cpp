@@ -15,7 +15,7 @@ TempFileTape::TempFileTape(const std::string& path, size_t size) : file_path_(pa
 TempFileTape::~TempFileTape() {
     try {
         std::filesystem::remove(file_path_);
-        LOG_INFO("Deleted temp tape: {}", file_path_);
+        LOG_DEBUG("Deleted temp tape: {}", file_path_);
     } catch (...) { }
 }
 
@@ -35,7 +35,7 @@ void TempFileTape::create_and_init_file(size_t size) {
     if (!file.is_open())
         throw std::runtime_error("Failed to create temp file: " + file_path_);
 
-    LOG_INFO("Created temp tape: {}", file_path_);
+    LOG_DEBUG("Created temp tape: {}", file_path_);
 
     int32_t zero = 0;
 
@@ -63,12 +63,12 @@ void TempFileTape::rewind() {
     tape_->rewind();
 }
 
-bool TempFileTape::can_move_right() const {
-    return tape_->can_move_right();
+bool TempFileTape::is_bof() const {
+    return tape_->is_bof();
 }
 
-bool TempFileTape::can_move_left() const {
-    return tape_->can_move_left();
+bool TempFileTape::is_eof() const {
+    return tape_->is_eof();
 }
 
 size_t TempFileTape::size() const {

@@ -40,12 +40,12 @@ void DelayTapeDecorator::rewind() {
     tape_.rewind();
 }
 
-bool DelayTapeDecorator::can_move_right() const {
-    return tape_.can_move_right();
+bool DelayTapeDecorator::is_bof() const {
+    return tape_.is_bof();
 }
 
-bool DelayTapeDecorator::can_move_left() const {
-    return tape_.can_move_left();
+bool DelayTapeDecorator::is_eof() const {
+    return tape_.is_eof();
 }
 
 size_t DelayTapeDecorator::size() const {

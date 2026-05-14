@@ -23,8 +23,8 @@ public:
 
     void rewind() override;
 
-    bool can_move_right() const override;
-    bool can_move_left() const override;
+    bool is_bof() const override;
+    bool is_eof() const override;
 
     size_t size() const override;
     size_t position() const override;

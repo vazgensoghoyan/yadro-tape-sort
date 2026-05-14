@@ -24,8 +24,8 @@ public:
     void move_left() override;
     void rewind() override;
 
-    bool can_move_right() const override;
-    bool can_move_left() const override;
+    bool is_bof() const override;
+    bool is_eof() const override;
 
     size_t size() const override;
     size_t position() const override;
@@ -34,7 +34,6 @@ public:
 
 private:
     void ensure_opened() const;
-    void ensure_position() const;
     void seek_to_curr_position();
     std::streamoff byte_offset(size_t pos) const;
 
@@ -44,8 +43,8 @@ private:
     std::fstream file_;
     std::string file_path_;
 
-    size_t head_pos_;
-    size_t tape_size_;
+    size_t head_pos_;   // 0 .. size + 1
+    size_t tape_size_;  // колво элементов (не про байты)
 };
 
 } // namespace tape_sort::tape

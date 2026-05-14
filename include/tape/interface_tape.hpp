@@ -5,6 +5,12 @@
 
 namespace tape_sort::tape {
 
+// Логически у нас такой tape:
+// BOF el_1 el_2 .. el_N EOF
+
+// BOF: position() == 0
+// EOF: position() == size() + 1
+
 class ITape {
 public:
     virtual ~ITape() = default;
@@ -15,10 +21,10 @@ public:
     virtual void move_right() = 0;
     virtual void move_left() = 0;
 
-    virtual void rewind() = 0; // перемотка ленты в начало
+    virtual void rewind() = 0;      // перематывает на BOF
 
-    virtual bool can_move_right() const = 0;
-    virtual bool can_move_left() const = 0;
+    virtual bool is_bof() const = 0;
+    virtual bool is_eof() const = 0;
 
     virtual size_t size() const = 0;
     virtual size_t position() const = 0;

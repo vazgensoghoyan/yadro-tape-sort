@@ -199,4 +199,8 @@ TEST_F(ConfigLoaderTest, SupportsBoolAsZeroOne) {
     EXPECT_TRUE(config.log.enabled);
 }
 
+TEST(ConfigLoaderTests, ThrowsOnMissingKey) {
+    EXPECT_THROW(ConfigLoader::load("bad_config.txt"), std::runtime_error);
+}
+
 } // namespace tape_sort::config::test

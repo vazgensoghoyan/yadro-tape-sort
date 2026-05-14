@@ -64,38 +64,44 @@ std::vector<TapeSorter::RunPtr> TapeSorter::create_runs(ITape& input) {
 // MERGE
 
 void TapeSorter::merge_runs(std::vector<RunPtr>& runs, ITape& output) {
-    struct Node {
-        int32_t val;
-        size_t idx;
-        bool operator>(const Node& other) const { return val > other.val; }
-    };
+    output.rewind();
 
-    std::priority_queue<Node, std::vector<Node>, std::greater<>> heap;
+    std::vector<bool> finished(runs.size(), false);
 
-    for (size_t i = 0; i < runs.size(); ++i) {
-        auto& tape = *runs[i];
-        tape.rewind();
-        heap.push({tape.read(), i});
-    }
+    for (auto& run : runs)
+        run->rewind();
 
-    while (!heap.empty()) {
-        auto [value, idx] = heap.top();
-        heap.pop();
+    while (true) {
+        int32_t min_value = std::numeric_limits<int32_t>::max();
+        size_t min_index = runs.size();
 
-        if (!output.is_eof())
-            output.write(value);
+        for (size_t i = 0; i < runs.size(); ++i) {
+            if (finished[i])
+                continue;
 
+            auto& tape = *runs[i];
+
+            if (tape.is_eof()) {
+                finished[i] = true;
+                continue;
+            }
+
+            int32_t value = tape.read();
+
+            if (value < min_value) {
+                min_value = value;
+                min_index = i;
+            }
+        }
+
+        if (min_index == runs.size())
+            break;
+
+        output.write(min_value);
         output.move_right();
 
-        auto& tape = *runs[idx];
-
-        if (!tape.is_eof()) {
-            heap.push({tape.read(), idx});
-            tape.move_right();
-        }
+        runs[min_index]->move_right();
     }
-
-    LOG_INFO("Merged temp tapes into 'output'");
 }
 
 // HELPERS
@@ -123,8 +129,8 @@ std::vector<int32_t> TapeSorter::read_chunk(ITape& input, size_t chunk_size) {
 }
 
 void TapeSorter::write_run_to_tape(TempFileTape& tape, const std::vector<int32_t>& data) {
-    for (size_t i = 0; i < data.size(); ++i) {
-        tape.write(data[i]);
+    for (auto number : data) {
+        tape.write(number);
         tape.move_right();
     }
 

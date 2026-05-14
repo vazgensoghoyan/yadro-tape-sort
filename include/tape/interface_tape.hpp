@@ -11,6 +11,10 @@ namespace tape_sort::tape {
 // BOF: position() == 0
 // EOF: position() == size() + 1
 
+// read/write на EOF/BOF должны возвращать ошибку
+
+// при этом размер я предполагаю константный, не можем увеличивать ленту
+
 class ITape {
 public:
     virtual ~ITape() = default;

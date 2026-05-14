@@ -10,10 +10,11 @@ namespace tape_sort::tape {
 
 // Обязан сам создавать файл. Но получает на вход название файла, путь к нему
 // Если такой файл уже существует, ошибка
+// Деструктор удаляет временный файл
 
 class TempFileTape final : public ITape {
 public:
-    TempFileTape(const std::string& path, size_t size);
+    TempFileTape(const std::string& dir_path, size_t size);
     ~TempFileTape() override;
 
     int32_t read() override;
@@ -27,13 +28,15 @@ public:
     bool is_bof() const override;
     bool is_eof() const override;
 
-    size_t size() const;
-    size_t position() const;
+    size_t size() const override;
+    size_t position() const override;
 
     const std::string& file_path() const;
 
 private:
-    void create_and_init_file(size_t size);
+    void zeros_init_file(size_t size);
+
+    static std::string generate_temp_path(const std::string& dir);
 
 private:
     std::string file_path_;

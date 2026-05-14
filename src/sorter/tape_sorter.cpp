@@ -35,7 +35,6 @@ std::vector<TapeSorter::RunPtr> TapeSorter::create_runs(ITape& input) {
     fs::create_directories(config_.filesystem.tmp_dir);
 
     std::vector<RunPtr> runs;
-    size_t run_index = 0;
 
     input.rewind();
 
@@ -46,12 +45,9 @@ std::vector<TapeSorter::RunPtr> TapeSorter::create_runs(ITape& input) {
 
         std::sort(buffer.begin(), buffer.end());
 
-        auto path = make_run_path(config_.filesystem.tmp_dir, run_index++);
-        auto run = std::make_unique<TempFileTape>(path, buffer.size());
+        auto run = std::make_unique<TempFileTape>(config_.filesystem.tmp_dir, buffer.size());
 
         write_run_to_tape(*run, buffer);
-
-        LOG_DEBUG("Created temp tape {} with size {}", path, buffer.size());
 
         runs.push_back(std::move(run));
     }
@@ -135,8 +131,4 @@ void TapeSorter::write_run_to_tape(TempFileTape& tape, const std::vector<int32_t
     }
 
     tape.rewind();
-}
-
-std::string TapeSorter::make_run_path(const std::string& dir, size_t index) {
-    return dir + "/run_" + std::to_string(index) + ".bin";
 }

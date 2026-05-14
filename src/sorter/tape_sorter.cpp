@@ -82,16 +82,16 @@ void TapeSorter::merge_runs(std::vector<RunPtr>& runs, ITape& output) {
         auto [value, idx] = heap.top();
         heap.pop();
 
-        output.write(value);
+        if (!output.is_eof())
+            output.write(value);
 
-        if (output.can_move_right())
-            output.move_right();
+        output.move_right();
 
         auto& tape = *runs[idx];
 
-        if (tape.can_move_right()) {
-            tape.move_right();
+        if (!tape.is_eof()) {
             heap.push({tape.read(), idx});
+            tape.move_right();
         }
     }
 
@@ -114,11 +114,8 @@ std::vector<int32_t> TapeSorter::read_chunk(ITape& input, size_t chunk_size) {
     std::vector<int32_t> buffer;
     buffer.reserve(chunk_size);
 
-    for (size_t i = 0; i < chunk_size; ++i) {
+    while (buffer.size() < chunk_size && !input.is_eof()) {
         buffer.push_back(input.read());
-
-        if (!input.can_move_right()) break;
-
         input.move_right();
     }
 
@@ -128,9 +125,7 @@ std::vector<int32_t> TapeSorter::read_chunk(ITape& input, size_t chunk_size) {
 void TapeSorter::write_run_to_tape(TempFileTape& tape, const std::vector<int32_t>& data) {
     for (size_t i = 0; i < data.size(); ++i) {
         tape.write(data[i]);
-
-        if (i + 1 < data.size() && tape.can_move_right())
-            tape.move_right();
+        tape.move_right();
     }
 
     tape.rewind();

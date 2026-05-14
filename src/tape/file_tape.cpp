@@ -16,7 +16,7 @@ FileTape::FileTape(const std::string& path) : file_path_(path) {
         throw std::runtime_error("Wrong file format: " + file_path_);
 
     tape_size_ = size_bytes / CELL_SIZE;
-    head_pos_ = 0; // BOF
+    head_pos_ = 1; // element 0
 
     LOG_DEBUG("Opened tape file: {}", file_path_);
 }
@@ -48,8 +48,7 @@ void FileTape::move_left() {
 }
 
 void FileTape::rewind() {
-    head_pos_ = 0;
-    file_.clear();
+    head_pos_ = 1;
 }
 
 int32_t FileTape::read() {

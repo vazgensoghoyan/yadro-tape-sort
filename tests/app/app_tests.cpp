@@ -204,10 +204,12 @@ TEST_F(AppTest, RandomArrayCorrectness) {
 TEST_F(AppTest, LargeInputStressTest) {
     auto files = make_files();
 
-    std::vector<int32_t> data;
-    data.reserve(5000);
+    const int SIZE = 50'000;
 
-    for (int i = 0; i < 5000; ++i)
+    std::vector<int32_t> data;
+    data.reserve(SIZE);
+
+    for (int i = 0; i < SIZE; ++i)
         data.push_back(rand());
 
     write_binary(files.input, data);

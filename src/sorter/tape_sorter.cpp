@@ -59,44 +59,56 @@ std::vector<TapeSorter::RunPtr> TapeSorter::create_runs(ITape& input) {
 
 // MERGE
 
+namespace {
+
+struct RunState {
+    TempFileTape* tape;
+    int32_t value;
+    bool finished = false;
+};
+
+struct Cmp {
+    bool operator()(const RunState* a, const RunState* b) const {
+        return a->value > b->value;
+    }
+};
+
+}
+
 void TapeSorter::merge_runs(std::vector<RunPtr>& runs, ITape& output) {
     output.rewind();
 
-    std::vector<bool> finished(runs.size(), false);
+    std::vector<RunState> states;
+    states.reserve(runs.size());
 
-    for (auto& run : runs)
+    std::priority_queue<RunState*, std::vector<RunState*>, Cmp> pq;
+
+    for (auto& run : runs) {
         run->rewind();
 
-    while (true) {
-        int32_t min_value = std::numeric_limits<int32_t>::max();
-        size_t min_index = runs.size();
+        if (!run->is_eof()) {
+            RunState state;
+            state.tape = run.get();
+            state.value = run->read();
 
-        for (size_t i = 0; i < runs.size(); ++i) {
-            if (finished[i])
-                continue;
-
-            auto& tape = *runs[i];
-
-            if (tape.is_eof()) {
-                finished[i] = true;
-                continue;
-            }
-
-            int32_t value = tape.read();
-
-            if (value < min_value) {
-                min_value = value;
-                min_index = i;
-            }
+            states.push_back(state);
+            pq.push(&states.back());
         }
+    }
 
-        if (min_index == runs.size())
-            break;
+    while (!pq.empty()) {
+        RunState* cur = pq.top();
+        pq.pop();
 
-        output.write(min_value);
+        output.write(cur->value);
         output.move_right();
 
-        runs[min_index]->move_right();
+        cur->tape->move_right();
+
+        if (!cur->tape->is_eof()) {
+            cur->value = cur->tape->read();
+            pq.push(cur);
+        }
     }
 }
 
